@@ -1,0 +1,115 @@
+body {
+    font-family: Arial, sans-serif;
+    color: #333;
+    margin: 0;
+    padding: 12px;
+    transition: background-color 0.3s, color 0.3s;
+
+    background-image:
+        radial-gradient(circle, #F4B400 12vmin, transparent 12vmin),
+        linear-gradient(
+            to bottom,
+            #75AADB 0%, #75AADB 33.3%,
+            #FFFFFF 33.3%, #FFFFFF 66.6%,
+            #75AADB 66.6%, #75AADB 100%
+        );
+    background-repeat: no-repeat, no-repeat;
+    background-position: center, center;
+    background-attachment: fixed;
+}
+
+h1 {
+    text-align: center;
+    margin-top: 10px; 
+    margin-bottom: 5px;
+}
+
+.formulario {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 400px;
+    margin: 0 auto 20px auto;
+}
+
+.formulario input {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.formulario input:focus {
+    border-color: #1db954;
+}
+
+.botones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.botones button {
+    padding: 10px 15px;
+    font-size: 16px;
+    border: none;
+    border-radius: 81px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.botones button:hover {
+    transform: scale(1.05);
+}
+
+#btnMostrar { background-color: #007bff; color: white; }
+#btnSugerencia { background-color: #9b59b6; color: white; }
+#btnDarkMode { background-color: #6c757d; color: white; }
+
+#mensajes {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 10px;
+    min-height: 20px;
+}
+
+#salida {
+    background-color: #e9ecef;
+    padding: 15px;
+    border-radius: 5px;
+    max-width: 600px;
+    margin: 0 auto;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    max-height: 300px;
+}
+
+body.dark {
+    background-color: #000; 
+    color: #e0e0e0;
+    background-image: none;
+}
+
+body.dark .formulario input {
+    background-color: #1e1e1e;
+    color: #f1f1f1;
+    border-color: #333;
+}
+
+body.dark .formulario input:focus {
+    border-color: #1db954;
+}
+
+body.dark .botones button {
+    box-shadow: 0 2px 6px rgba(255, 255, 255, 0.1);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
