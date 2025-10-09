@@ -24,7 +24,6 @@ function mostrarMensaje(texto, tipo = "info") {
     });
 }
 
-/* Guardar lista y formulario */
 function guardarLista() {
     localStorage.setItem('listaCanciones', JSON.stringify(listaCanciones));
 }
@@ -110,8 +109,6 @@ function mostrarListaCanciones() {
                     mostrarListaCanciones();
                 });
             });
-
-            // El listener para el botón "Limpiar Lista" no cambia.
             const btnLimpiar = document.getElementById("btnLimpiarLista");
             if (btnLimpiar) {
                 btnLimpiar.addEventListener("click", () => {
