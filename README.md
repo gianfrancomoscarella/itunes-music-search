@@ -36,7 +36,7 @@
 #  *SweetAlert2*
 #  *API pública de iTunes*  
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# ⚙️ Cómo ejecutar el proyecto
+# Cómo ejecutar el proyecto
 
 # 1. Clonar el repositorio o descargar los archivos:
 #   ```bash

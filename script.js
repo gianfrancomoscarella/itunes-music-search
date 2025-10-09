@@ -213,7 +213,6 @@ async function sugerenciaMusical() {
         Swal.fire({ icon: "error", title: "Error", text: error.message });
     }
 }
-
 function reproducirPreview(cancion) {
     if (!cancion.preview) {
         Swal.fire({
