@@ -1,9 +1,9 @@
-# EntregaFinalMoscarella
+# itunes-music-search
 # Entrega final del curso flex de JavaScript (CODERHOUSE)
 # Mejore el codigo para que quede mas moderno, atractivo, interactivo y llamativo al usuario. (Entiendo que la bandera argentina de fondo NO es profesional, pero era un detalle que queria ponerle)
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# 🎶 Spotify Argentina
+# 🎶 itunes-music-search
 
 # Aplicación web desarrollada en**JavaScript*, *HTML* y *CSS*, que permite buscar canciones y artistas a través de la *API de iTunes*.  
 # Incluye un sistema de *modo oscuro*, *reproductor de vista previa*, y *búsqueda en vivo*.
