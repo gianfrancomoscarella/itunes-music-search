@@ -1,12 +1,10 @@
 let listaCanciones = [];
 
-const mensajes = document.getElementById("mensajes");
 const btnDarkMode = document.getElementById("btnDarkMode");
 const inputTitulo = document.getElementById("titulo");
-const inputArtista = document.getElementById("artista");
+const badgeLista  = document.getElementById("badgeLista");
 
-const isAlpha = str => /^[A-Za-zÁÉÍÓÚÜáéíóúüÑñ0-9\s\-']+$/.test(str);
-
+// ── UTILS ──────────────────────────────────────────────────────
 function debounce(fn, delay) {
     let timeout;
     return function (...args) {
@@ -15,399 +13,476 @@ function debounce(fn, delay) {
     };
 }
 
-function mostrarMensaje(texto, tipo = "info") {
-    Swal.fire({
-        icon: tipo === "error" ? "error" : "success",
-        title: texto,
-        timer: 2000,
-        showConfirmButton: false
-    });
+function mostrarMensaje(texto, tipo = "success") {
+    Swal.fire({ icon: tipo, title: texto, timer: 2000, showConfirmButton: false });
 }
 
-function guardarLista() {
-    localStorage.setItem('listaCanciones', JSON.stringify(listaCanciones));
+function isDark() {
+    return document.body.classList.contains("dark");
 }
-function guardarFormulario() {
-    const titulo = document.getElementById("titulo").value;
-    const artista = document.getElementById("artista").value;
-    localStorage.setItem('formData', JSON.stringify({ titulo, artista }));
+
+// ── BADGE ──────────────────────────────────────────────────────
+function actualizarBadge() {
+    if (listaCanciones.length === 0) {
+        badgeLista.textContent = "";
+        badgeLista.classList.add("hidden");
+    } else {
+        badgeLista.textContent = listaCanciones.length;
+        badgeLista.classList.remove("hidden");
+    }
+}
+
+// ── LOCALSTORAGE ───────────────────────────────────────────────
+function guardarLista() {
+    localStorage.setItem("listaCanciones", JSON.stringify(listaCanciones));
+    actualizarBadge();
 }
 
 function cargarLista() {
     try {
-        const data = localStorage.getItem('listaCanciones');
+        const data = localStorage.getItem("listaCanciones");
         if (data) listaCanciones = JSON.parse(data);
-    } catch (e) {
-        listaCanciones = [];
-        console.error("Error cargando lista:", e);
-    }
+    } catch { listaCanciones = []; }
+}
+
+function guardarFormulario() {
+    localStorage.setItem("formData", JSON.stringify({ titulo: inputTitulo.value }));
 }
 
 function precargarFormulario() {
-    const data = localStorage.getItem('formData');
-    if (data) {
-        const { titulo, artista } = JSON.parse(data);
-        document.getElementById("titulo").value = titulo || "";
-        document.getElementById("artista").value = artista || "";
-    }
+    try {
+        const data = JSON.parse(localStorage.getItem("formData"));
+        if (data) inputTitulo.value = data.titulo || "";
+    } catch {}
 }
+
 cargarLista();
 precargarFormulario();
+actualizarBadge();
+
+// ── HISTORIAL ──────────────────────────────────────────────────
+const MAX_HISTORIAL = 8;
+
+function guardarHistorial(query) {
+    if (!query || query.trim().length < 2) return;
+    let h = obtenerHistorial().filter(q => q.toLowerCase() !== query.toLowerCase());
+    h.unshift(query.trim());
+    if (h.length > MAX_HISTORIAL) h = h.slice(0, MAX_HISTORIAL);
+    localStorage.setItem("historialBusquedas", JSON.stringify(h));
+    renderizarHistorial();
+}
+
+function obtenerHistorial() {
+    try { return JSON.parse(localStorage.getItem("historialBusquedas")) || []; }
+    catch { return []; }
+}
+
+function renderizarHistorial() {
+    const contenedor = document.getElementById("historialBusquedas");
+    if (!contenedor) return;
+    const historial = obtenerHistorial();
+    if (historial.length === 0) { contenedor.innerHTML = ""; return; }
+
+    contenedor.innerHTML = `
+        <div class="historial-inner">
+            <span class="historial-label">🕘 Recientes:</span>
+            ${historial.map(q => `<button class="chip-historial" data-query="${q}">${q}</button>`).join("")}
+            <button class="btn-limpiar-historial">Limpiar</button>
+        </div>
+    `;
+
+    contenedor.querySelectorAll(".chip-historial").forEach(chip => {
+        chip.addEventListener("click", () => {
+            inputTitulo.value = chip.dataset.query;
+            inputTitulo.dispatchEvent(new Event("input"));
+        });
+    });
+
+    contenedor.querySelector(".btn-limpiar-historial").addEventListener("click", () => {
+        localStorage.removeItem("historialBusquedas");
+        renderizarHistorial();
+    });
+}
+
+// ── FAVORITOS ──────────────────────────────────────────────────
+function yaEstaEnLista(titulo, artista) {
+    return listaCanciones.some(
+        c => c.titulo.toLowerCase() === titulo.toLowerCase() &&
+             c.artista.toLowerCase() === artista.toLowerCase()
+    );
+}
+
+function agregarCancion(cancion) {
+    if (yaEstaEnLista(cancion.trackName, cancion.artistName)) {
+        mostrarMensaje(`"${cancion.trackName}" ya está en tu lista`, "info");
+        return;
+    }
+    listaCanciones.push({
+        titulo:  cancion.trackName,
+        artista: cancion.artistName,
+        preview: cancion.previewUrl || null,
+    });
+    guardarLista();
+    mostrarMensaje(`🎶 "${cancion.trackName}" agregada`);
+}
 
 function mostrarListaCanciones() {
     if (listaCanciones.length === 0) {
         Swal.fire({ icon: "info", title: "No hay canciones guardadas" });
         return;
     }
-    let html = '<ul style="list-style:none; padding:0;">';
+
+    let html = '<ul style="list-style:none; padding:0; margin:0;">';
     listaCanciones.forEach((c, i) => {
         html += `
-            <li style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; padding:8px; border-radius:5px; background:#f1f1f1;">
-                <div id="cancion-${i}" style="cursor:pointer; flex-grow: 1;">
-                    🎶 <strong>${c.titulo}</strong> - ${c.artista}
+            <li style="display:flex; justify-content:space-between; align-items:center;
+                       margin:8px 0; padding:8px; border-radius:8px;
+                       background:${isDark() ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"};
+                       color:${isDark() ? "#eee" : "#333"};">
+                <div id="cancion-${i}" style="cursor:pointer; flex-grow:1;">
+                    🎶 <strong>${c.titulo}</strong> — ${c.artista}
                 </div>
-                <button class="btn-eliminar" data-index="${i}" style="
-                    background: transparent;
-                    border: none;
-                    font-size: 1.2rem;
-                    cursor: pointer;
-                    padding: 0 5px;
-                    margin-left: 10px;
-                ">🗑️</button>
-            </li>
-        `;
+                <button class="btn-eliminar" data-index="${i}"
+                    style="background:transparent; border:none; font-size:1.2rem; cursor:pointer; padding:0 5px; opacity:0.6;">
+                    🗑️
+                </button>
+            </li>`;
     });
-    html += '</ul>';
-    html += `<button id="btnLimpiarLista" style="
-                margin-top:10px;
-                padding:8px 12px;
-                background:#dc3545;
-                color:white;
-                border:none;
-                border-radius:5px;
-                cursor:pointer;
-            ">🗑 Limpiar Lista</button>`;
+    html += `</ul>
+        <button id="btnLimpiarLista" style="margin-top:10px; padding:8px 14px;
+            background:#dc3545; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600;">
+            🗑 Limpiar Lista
+        </button>`;
 
     Swal.fire({
-        title: "🎧 Tu Lista de Canciones",
+        title: `🎧 Mi Lista (${listaCanciones.length})`,
         html,
         width: 600,
         showConfirmButton: false,
         showCloseButton: true,
+        background: isDark() ? "#1a1830" : "#fff",
+        color:      isDark() ? "#eee"    : "#333",
         didOpen: () => {
-
             listaCanciones.forEach((c, i) => {
-                const elemento = document.getElementById(`cancion-${i}`);
-                if (elemento) elemento.addEventListener("click", () => reproducirPreview(c));
+                document.getElementById(`cancion-${i}`)
+                    ?.addEventListener("click", () => reproducirPreview(c));
             });
 
             document.querySelectorAll(".btn-eliminar").forEach(btn => {
-                btn.addEventListener("click", (e) => {
-                    const index = Number(e.currentTarget.dataset.index);
-                    listaCanciones.splice(index, 1);
+                btn.addEventListener("click", e => {
+                    listaCanciones.splice(Number(e.currentTarget.dataset.index), 1);
                     guardarLista();
-                    mostrarListaCanciones();
+                    Swal.close();
+                    setTimeout(mostrarListaCanciones, 150);
                 });
             });
-            const btnLimpiar = document.getElementById("btnLimpiarLista");
-            if (btnLimpiar) {
-                btnLimpiar.addEventListener("click", () => {
-                    Swal.fire({
-                        title: "¿Estás seguro?",
-                        text: "Se eliminará toda tu lista de canciones",
-                        icon: "warning",
-                        showCancelButton: true,
-                        confirmButtonText: "Sí, limpiar",
-                        cancelButtonText: "Cancelar",
-                    }).then(result => {
-                        if (result.isConfirmed) {
-                            listaCanciones = [];
-                            guardarLista();
-                            Swal.fire({ icon: "success", title: "Lista vaciada", timer: 1500, showConfirmButton: false });
-                        }
-                    });
+
+            document.getElementById("btnLimpiarLista")?.addEventListener("click", () => {
+                Swal.fire({
+                    title: "¿Estás seguro?",
+                    text: "Se eliminará toda tu lista",
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Sí, limpiar",
+                    cancelButtonText: "Cancelar",
+                    background: isDark() ? "#1a1830" : "#fff",
+                    color:      isDark() ? "#eee"    : "#333",
+                }).then(r => {
+                    if (r.isConfirmed) {
+                        listaCanciones = [];
+                        guardarLista();
+                        Swal.fire({ icon: "success", title: "Lista vaciada", timer: 1500, showConfirmButton: false });
+                    }
                 });
-            }
-        },
+            });
+        }
     });
 }
+
+// ── PREVIEW ────────────────────────────────────────────────────
+function reproducirPreview(cancion) {
+    if (!cancion.preview) {
+        mostrarMensaje(`"${cancion.titulo}" no tiene preview disponible`, "info");
+        return;
+    }
+    Swal.fire({
+        title: `🎵 ${cancion.titulo}`,
+        html: `
+            <em>${cancion.artista}</em><br>
+            <audio id="player" controls autoplay style="margin-top:1rem; width:100%;">
+                <source src="${cancion.preview}" type="audio/mpeg">
+            </audio>
+            <p style="font-size:0.85rem; color:#999; margin-top:8px;">🎧 Preview de 30 segundos</p>
+        `,
+        showConfirmButton: false,
+        showCloseButton: true,
+        width: 400,
+        background: isDark() ? "#1a1830" : "#fff",
+        color:      isDark() ? "#eee"    : "#333",
+    });
+    setTimeout(() => document.getElementById("player")?.pause(), 30000);
+}
+
+// ── SUGERENCIA POR GÉNERO ──────────────────────────────────────
 async function sugerenciaMusical() {
+    const GENEROS = {
+        rock: "Rock", pop: "Pop", jazz: "Jazz", hiphop: "Hip-Hop",
+        classical: "Clásica", metal: "Metal", reggae: "Reggae",
+        electronic: "Electrónica", latin: "Latina", "r&b": "R&B"
+    };
+
+    const { value: genero } = await Swal.fire({
+        title: "🎵 Elegí un género",
+        input: "select",
+        inputOptions: GENEROS,
+        inputPlaceholder: "Seleccioná un género",
+        showCancelButton: true,
+        confirmButtonText: "Buscar 🎶",
+        cancelButtonText: "Cancelar",
+        background: isDark() ? "#1a1830" : "#fff",
+        color:      isDark() ? "#eee"    : "#333",
+    });
+
+    if (!genero) return;
+
     try {
-        const { value: genero } = await Swal.fire({
-            title: "🎵 Elegí un género musical",
-            input: "select",
-            inputOptions: {
-                rock: "Rock ",
-                pop: "Pop ",
-                jazz: "Jazz ",
-                hiphop: "Hip-Hop ",
-                classical: "Clásica ",
-                metal: "Metal ",
-                reggae: "Reggae ",
-            },
-            inputPlaceholder: "Selecciona un género",
-            showCancelButton: true,
-            confirmButtonText: "Buscar 🎶",
-            cancelButtonText: "Cancelar",
-        });
-
-        if (!genero) return;
-
-        const respuesta = await fetch(`https://itunes.apple.com/search?term=${genero}&entity=song&limit=25`);
-        if (!respuesta.ok) throw new Error("Error al obtener sugerencias");
-
-        const data = await respuesta.json();
-        if (!data.results || data.results.length === 0) {
-            Swal.fire({ icon: "info", title: "No se encontraron sugerencias" });
-            return;
-        }
+        const res  = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(genero)}&entity=song&limit=25`);
+        const data = await res.json();
+        if (!data.results?.length) { Swal.fire({ icon: "info", title: "Sin resultados" }); return; }
 
         const cancion = data.results[Math.floor(Math.random() * data.results.length)];
-        const audioPreview = cancion.previewUrl;
-        let audioHTML = audioPreview
-            ? `<audio id="player" controls autoplay style="margin-top: 1rem; width: 100%;">
-                   <source src="${audioPreview}" type="audio/mpeg">
+        const audioHTML = cancion.previewUrl
+            ? `<audio id="player" controls autoplay style="margin-top:1rem; width:100%;">
+                   <source src="${cancion.previewUrl}" type="audio/mpeg">
                </audio>
-               <p style="font-size: 0.9rem; color: gray;">🎧 Reproduciendo una preview de 30 segundos</p>`
-            : `<p style="color: #999;">⚠️ Esta canción no tiene preview disponible.</p>`;
+               <p style="font-size:0.85rem; color:#999; margin-top:8px;">🎧 Preview de 30 segundos</p>`
+            : `<p style="color:#999; margin-top:1rem;">⚠️ Sin preview disponible.</p>`;
 
-        Swal.fire({
-            title: `🎧 Sugerencia (${genero.toUpperCase()})`,
+        const result = await Swal.fire({
+            title: `🎧 Sugerencia — ${GENEROS[genero]}`,
             html: `
                 <strong>${cancion.trackName}</strong><br>
                 de <em>${cancion.artistName}</em><br>
-                <img src="${cancion.artworkUrl100}" width="200" style="margin-top: 1rem; border-radius:10px;">
+                <img src="${cancion.artworkUrl100}" width="180" style="margin-top:1rem; border-radius:12px;">
                 ${audioHTML}
             `,
             showCancelButton: true,
             confirmButtonText: "✅ Agregar a mi lista",
             cancelButtonText: "Cerrar",
-            background: document.body.classList.contains("dark") ? "#222" : "#fff",
-            color: document.body.classList.contains("dark") ? "#fff" : "#000",
-            width: 400
-        }).then((result) => {
-            if (result.isConfirmed) {
-                listaCanciones.push({
-                    titulo: cancion.trackName,
-                    artista: cancion.artistName,
-                    duracion: "00:30",
-                    preview: cancion.previewUrl || null
-                });
-                guardarLista();
-                Swal.fire({
-                    icon: "success",
-                    title: "🎵 Canción agregada",
-                    text: `${cancion.trackName} - ${cancion.artistName}`,
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
-            }
+            background: isDark() ? "#1a1830" : "#fff",
+            color:      isDark() ? "#eee"    : "#333",
+            width: 420,
         });
 
-        setTimeout(() => {
-            const player = document.getElementById("player");
-            if (player) player.pause();
-        }, 15000);
+        if (result.isConfirmed) agregarCancion(cancion);
+        setTimeout(() => document.getElementById("player")?.pause(), 30000);
 
-    } catch (error) {
-        Swal.fire({ icon: "error", title: "Error", text: error.message });
+    } catch (err) {
+        Swal.fire({ icon: "error", title: "Error", text: err.message });
     }
 }
-function reproducirPreview(cancion) {
-    if (!cancion.preview) {
-        Swal.fire({
-            icon: "info",
-            title: "⚠️ No hay preview disponible",
-            text: `${cancion.titulo} - ${cancion.artista}`,
-        });
-        return;
-    }
 
-    Swal.fire({
-        title: `🎵 Escuchando: ${cancion.titulo}`,
-        html: `
-            <em>${cancion.artista}</em><br>
-            <audio id="player" controls autoplay style="margin-top: 1rem; width: 100%;">
-                <source src="${cancion.preview}" type="audio/mpeg">
-            </audio>
-            <p style="font-size: 0.9rem; color: gray;">🎧 Reproduciendo 15 segundos...</p>
-        `,
-        showConfirmButton: false,
-        showCloseButton: true,
-        width: 400,
+// ── RENDERIZAR RESULTADOS ──────────────────────────────────────
+function renderizarResultados(results, contenedor, limpiar = true) {
+    if (limpiar) contenedor.innerHTML = "";
+    results.forEach(cancion => {
+        const item = document.createElement("div");
+        item.className = "resultado-item";
+
+        const tienePreview = !!cancion.previewUrl;
+        item.innerHTML = `
+            <div class="resultado-info">
+                <img src="${cancion.artworkUrl60}" alt="">
+                <div style="min-width:0;">
+                    <div class="resultado-titulo">${cancion.trackName}</div>
+                    <div class="resultado-nombre">${cancion.artistName}</div>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                ${!tienePreview ? '<span class="sin-preview" title="Sin preview">🔇</span>' : ''}
+                <button class="btn-agregar">+ Agregar</button>
+            </div>
+        `;
+
+        // Click en el item → preview
+        item.addEventListener("click", e => {
+            if (e.target.classList.contains("btn-agregar")) return;
+            if (!tienePreview) return; // ícono ya indica que no hay preview, sin popup
+            Swal.fire({
+                title: `🎵 ${cancion.trackName}`,
+                html: `
+                    <em>${cancion.artistName}</em><br>
+                    <img src="${cancion.artworkUrl100}" width="180" style="margin-top:1rem; border-radius:12px;"><br>
+                    <audio id="player" controls autoplay style="margin-top:1rem; width:100%;">
+                        <source src="${cancion.previewUrl}" type="audio/mpeg">
+                    </audio>
+                `,
+                showConfirmButton: false,
+                showCloseButton: true,
+                width: 400,
+                background: isDark() ? "#1a1830" : "#fff",
+                color:      isDark() ? "#eee"    : "#333",
+            });
+            setTimeout(() => document.getElementById("player")?.pause(), 30000);
+        });
+
+        item.querySelector(".btn-agregar").addEventListener("click", e => {
+            e.stopPropagation();
+            agregarCancion(cancion);
+        });
+
+        contenedor.appendChild(item);
     });
-
-    setTimeout(() => {
-        const player = document.getElementById("player");
-        if (player) player.pause();
-    }, 15000);
 }
 
+// ── LIVE SEARCH ────────────────────────────────────────────────
 function configurarLiveSearch() {
-    const resultados = document.createElement("div");
-    resultados.id = "resultadosLive";
-    resultados.style.cssText = `
-        max-width: 400px;
-        margin: 0 auto 20px auto;
-        background: #fff;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-        padding: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        max-height: 250px;
-        overflow-y: auto;
-    `;
-    document.querySelector(".formulario").insertAdjacentElement("afterend", resultados);
+    const formulario = document.querySelector(".formulario");
 
+    // Filtro género
+    const filtroWrap = document.createElement("div");
+    filtroWrap.className = "filtro-genero";
+    filtroWrap.innerHTML = `
+        <select id="filtroGenero">
+            <option value="">🎵 Todos los géneros</option>
+            <option value="rock">Rock</option>
+            <option value="pop">Pop</option>
+            <option value="jazz">Jazz</option>
+            <option value="hip hop">Hip-Hop</option>
+            <option value="classical">Clásica</option>
+            <option value="metal">Metal</option>
+            <option value="reggae">Reggae</option>
+            <option value="electronic">Electrónica</option>
+            <option value="latin">Latina</option>
+            <option value="r&b">R&B</option>
+        </select>
+    `;
+    formulario.insertAdjacentElement("afterend", filtroWrap);
+
+    // Historial
+    const historialDiv = document.createElement("div");
+    historialDiv.id = "historialBusquedas";
+    historialDiv.className = "historial-busquedas";
+    filtroWrap.insertAdjacentElement("afterend", historialDiv);
+    renderizarHistorial();
+
+    // Spinner
     const spinner = document.createElement("div");
     spinner.id = "spinner";
-    spinner.style.cssText = `
-        display:none;
-        text-align:center;
-        padding:10px;
-    `;
-    spinner.innerHTML = `
-        <div class="loader" style="
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #1db954;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            animation: spin 1s linear infinite;
-            margin: auto;
-        "></div>
-        <p style="font-size:14px;color:#555;">Buscando canciones...</p>
-    `;
-    resultados.before(spinner);
+    spinner.innerHTML = `<div class="loader"></div><p style="font-size:14px; color:rgba(255,255,255,0.4); margin-top:8px;">Buscando...</p>`;
+    historialDiv.insertAdjacentElement("afterend", spinner);
 
-    let timeout;
+    // Resultados
+    const resultados = document.createElement("div");
+    resultados.id = "resultadosLive";
+    spinner.insertAdjacentElement("afterend", resultados);
+
+    const selectGenero = document.getElementById("filtroGenero");
+
+    // Canciones populares por defecto al cargar
+    async function cargarPopulares() {
+        spinner.style.display = "block";
+        try {
+            // Usamos el RSS feed de iTunes que sí tiene un top 10 real
+        const res  = await fetch(`https://itunes.apple.com/us/rss/topsongs/limit=10/json`);
+            const data = await res.json();
+            spinner.style.display = "none";
+            const rawResults = data.feed?.entry || data.results || [];
+            const results = rawResults.map(e => e["im:name"] ? {
+                trackName: e["im:name"].label,
+                artistName: e["im:artist"].label,
+                artworkUrl60: e["im:image"]?.[1]?.label || "",
+                artworkUrl100: e["im:image"]?.[2]?.label || "",
+                previewUrl: e?.link?.find?.(l => l?.attributes?.type === "audio/x-m4a")?.attributes?.href || null,
+            } : e);
+            if (results.length) {
+                resultados.innerHTML = `<div style="
+                    display:flex; align-items:center; gap:8px;
+                    padding:10px 8px 8px;
+                    border-bottom: 1px solid rgba(255,255,255,0.08);
+                    margin-bottom:4px;">
+                    <span style="font-size:1.3rem;">🔥</span>
+                    <span style="
+                        font-size:13px;
+                        font-weight:800;
+                        letter-spacing:2px;
+                        text-transform:uppercase;
+                        background: linear-gradient(90deg, #a78bfa, #f472b6, #fb923c);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        background-clip: text;">Top Hits</span>
+                    <span style="
+                        font-size:10px;
+                        color:rgba(255,255,255,0.3);
+                        font-style:italic;
+                </div>`;
+                renderizarResultados(results, resultados, false);
+            }
+        } catch {
+            spinner.style.display = "none";
+        }
+    }
+    cargarPopulares();
+
     async function buscar() {
         const titulo = inputTitulo.value.trim();
-        const artista = inputArtista.value.trim();
+        const genero = selectGenero.value;
+
         resultados.innerHTML = "";
 
-        if (!titulo && !artista) {
-            resultados.innerHTML = "<p style= 'color:#999; text-align:center;' >Empieza a escribir para buscar...</p>";
+        // Sin input → mostrar populares
+        if (!titulo && !genero) {
+            cargarPopulares();
             return;
         }
 
-        clearTimeout(timeout);
-        timeout = setTimeout(async () => {
-            spinner.style.display = "block";
-            try {
-                const query = [titulo, artista].filter(Boolean).join(" ");
-                const respuesta = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`);
-                if (!respuesta.ok) throw new Error("Error al obtener datos");
-                const data = await respuesta.json();
+        spinner.style.display = "block";
 
-                spinner.style.display = "none";
-                if (!data.results || data.results.length === 0) {
-                    resultados.innerHTML = "<p style='color:#999; text-align:center;'>No se encontraron coincidencias</p>";
-                    return;
-                }
+        try {
+            const q = [titulo, genero].filter(Boolean).join(" ");
+            const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=10`;
 
-                resultados.innerHTML = data.results.map(c => `
-                    <div class="resultado-item" style="
-                        display:flex;
-                        align-items:center;
-                        justify-content:space-between;
-                        border-bottom:1px solid #eee;
-                        padding:6px;
-                        cursor:pointer;
-                        transition:background 0.2s;
-                    ">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <img src="${c.artworkUrl60}" alt="" style="width:45px; height:45px; border-radius:5px;">
-                            <div>
-                                <strong>${c.trackName}</strong><br>
-                                <span style="font-size:0.9rem; color:#666;">${c.artistName}</span>
-                            </div>
-                        </div>
-                        <button class="btn-agregar" style="
-                            background:#1db954;
-                            color:white;
-                            border:none;
-                            border-radius:5px;
-                            padding:4px 8px;
-                            cursor:pointer;
-                            font-size:13px;
-                        ">+ Agregar</button>
-                    </div>
-                `).join("");
+            if (titulo) guardarHistorial(titulo);
 
-                resultados.querySelectorAll(".resultado-item").forEach((item, i) => {
-                    const cancion = data.results[i];
+            const res  = await fetch(url);
+            if (!res.ok) throw new Error("Error al conectar con iTunes");
+            const data = await res.json();
 
-                    item.addEventListener("mouseenter", () => item.style.background = "#f0f0f0");
-                    item.addEventListener("mouseleave", () => item.style.background = "#fff");
+            spinner.style.display = "none";
 
-                    item.addEventListener("click", (e) => {
-                        if (e.target.classList.contains("btn-agregar")) return;
-                        if (!cancion.previewUrl) {
-                            Swal.fire({ icon: "info", title: "⚠️ No hay preview disponible" });
-                            return;
-                        }
-
-                        Swal.fire({
-                            title: `🎵 ${cancion.trackName}`,
-                            html: `
-                                <em>${cancion.artistName}</em><br>
-                                <img src="${cancion.artworkUrl100}" width="200" style="margin-top:1rem; border-radius:10px;"><br>
-                                <audio id="player" controls autoplay style="margin-top:1rem; width:100%;">
-                                    <source src="${cancion.previewUrl}" type="audio/mpeg">
-                                </audio>
-                                <p style="font-size:0.9rem; color:gray;"></p>
-                            `,
-                            showConfirmButton: false,
-                            showCloseButton: true,
-                            width: 400,
-                            background: document.body.classList.contains("dark") ? "#222" : "#fff",
-                            color: document.body.classList.contains("dark") ? "#fff" : "#000",
-                        });
-
-                        setTimeout(() => {
-                            const player = document.getElementById("player");
-                            if (player) player.pause();
-                        }, 15000);
-                    });
-
-                    item.querySelector(".btn-agregar").addEventListener("click", (e) => {
-                        e.stopPropagation();
-                        const nuevaCancion = {
-                            titulo: cancion.trackName,
-                            artista: cancion.artistName,
-                            preview: cancion.previewUrl,
-                            duracion: "00:30"
-                        };
-                        listaCanciones.push(nuevaCancion);
-                        guardarLista();
-                        mostrarMensaje(`🎶 "${cancion.trackName}" agregada a tu lista`);
-                    });
-                });
-            } catch (error) {
-                spinner.style.display = "none";
-                resultados.innerHTML = `<p style='color:red; text-align:center;'>Error: ${error.message}</p>`;
+            if (!data.results?.length) {
+                resultados.innerHTML = "<p style='color:rgba(255,255,255,0.4); text-align:center; padding:12px;'>No se encontraron resultados</p>";
+                return;
             }
-        }, 400);
-    }
-    const buscarDebounced = debounce(buscar, 100);
 
+            renderizarResultados(data.results, resultados);
+
+        } catch (err) {
+            spinner.style.display = "none";
+            resultados.innerHTML = `<p style='color:#f87171; text-align:center; padding:12px;'>Error: ${err.message}</p>`;
+        }
+    }
+
+    const buscarDebounced = debounce(buscar, 400);
     inputTitulo.addEventListener("input", buscarDebounced);
-    inputArtista.addEventListener("input", buscarDebounced);
+    selectGenero.addEventListener("change", buscarDebounced);
 }
 
-if (localStorage.getItem('modoOscuro') === 'true') {
-    document.body.classList.add('dark');
+// ── DARK MODE ──────────────────────────────────────────────────
+if (localStorage.getItem("modoOscuro") === "true") {
+    document.body.classList.add("dark");
     btnDarkMode.textContent = "☀️ Modo Claro";
 }
+
 btnDarkMode.addEventListener("click", () => {
     document.body.classList.toggle("dark");
     const esDark = document.body.classList.contains("dark");
     btnDarkMode.textContent = esDark ? "☀️ Modo Claro" : "🌙 Modo Oscuro";
-    localStorage.setItem('modoOscuro', esDark);
+    localStorage.setItem("modoOscuro", esDark);
 });
 
+// ── EVENTOS ────────────────────────────────────────────────────
 document.getElementById("btnMostrar").addEventListener("click", mostrarListaCanciones);
 document.getElementById("btnSugerencia").addEventListener("click", sugerenciaMusical);
-document.querySelectorAll(".formulario input").forEach(i => i.addEventListener("input", guardarFormulario));
+inputTitulo.addEventListener("input", guardarFormulario);
 configurarLiveSearch();
